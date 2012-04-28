@@ -12,6 +12,8 @@
 #include <linux/completion.h>
 #include <linux/cpumask.h>
 #include <linux/page-debug-flags.h>
+#include <linux/range_lock.h>
+
 #include <asm/page.h>
 #include <asm/mmu.h>
 
@@ -307,6 +309,7 @@ struct mm_struct {
 
 	spinlock_t page_table_lock;		/* Protects page tables and some counters */
 	struct rw_semaphore mmap_sem;
+	struct range_lock_s range_lock;
 
 	struct list_head mmlist;		/* List of maybe swapped mm's.	These are globally strung
 						 * together off init_mm.mmlist, and are protected

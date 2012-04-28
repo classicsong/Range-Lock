@@ -449,6 +449,8 @@ unsigned long do_mremap(unsigned long addr,
 	if (!new_len)
 		goto out;
 
+	//FIXME: Add range lock here
+
 	if (flags & MREMAP_FIXED) {
 		if (flags & MREMAP_MAYMOVE)
 			ret = mremap_to(addr, old_len, new_addr, new_len);

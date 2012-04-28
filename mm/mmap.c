@@ -1068,12 +1068,16 @@ unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
 			return -EINVAL;
 		}
 	}
+	
+	lock_range(&mm->range_lock, addr, len);
 
 	error = security_file_mmap(file, reqprot, prot, flags, addr, 0);
 	if (error)
 		return error;
+	error = mmap_region(file, addr, len, flags, vm_flags, pgoff);
 
-	return mmap_region(file, addr, len, flags, vm_flags, pgoff);
+	unlock_range(&mm->range_lock, addr);
+	return error;
 }
 EXPORT_SYMBOL(do_mmap_pgoff);
 
@@ -1891,6 +1895,35 @@ static void unmap_region(struct mm_struct *mm,
 }
 
 /*
+ * Get rid of page table information in the indicated region. 
+ * Release mm semaphore earlier for munmap syscall.
+ * 
+ * Called with the mm semaphore held.
+ */
+static void unmap_region2(struct mm_struct *mm,
+		struct vm_area_struct *vma, struct vm_area_struct *prev,
+		unsigned long start, unsigned long end)
+{
+	struct vm_area_struct *next = prev? prev->vm_next: mm->mmap;
+	struct mmu_gather tlb;
+	unsigned long nr_accounted = 0;
+
+	lru_add_drain();
+	tlb_gather_mmu(&tlb, mm, 0);
+	update_hiwater_rss(mm);
+	
+	/* Release mm semaphore earlier */
+	up_write(&mm->mmap_sem);
+
+	unmap_vmas(&tlb, vma, start, end, &nr_accounted, NULL);
+	vm_unacct_memory(nr_accounted);
+	free_pgtables(&tlb, vma, prev ? prev->vm_end : FIRST_USER_ADDRESS,
+				 next ? next->vm_start : 0);
+	tlb_finish_mmu(&tlb, start, end);
+	//down_write(&mm->mmap_sem);
+}
+
+/*
  * Create a list of vma's touched by the unmap, removing them from the mm's
  * vma list as we go..
  */
@@ -2101,6 +2134,108 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len)
 
 EXPORT_SYMBOL(do_munmap);
 
+
+/* 
+ *  FIXME: Copy-Paste Code
+ *  Modified version of do_munmap that acquires range_lock
+ */ 
+int do_munmap2(struct mm_struct *mm, unsigned long start, size_t len)
+{
+	unsigned long end;
+	struct vm_area_struct *vma, *prev, *last;
+
+	if ((start & ~PAGE_MASK) || start > TASK_SIZE || len > TASK_SIZE-start)
+		return -EINVAL;
+
+	if ((len = PAGE_ALIGN(len)) == 0)
+		return -EINVAL;
+
+	lock_range(&mm->range_lock, start, len);
+
+	/* Find the first overlapping VMA */
+	vma = find_vma(mm, start);
+	if (!vma) {
+		unlock_range(&mm->range_lock, start);
+		return 0;
+	}
+	prev = vma->vm_prev;
+	/* we have  start < vma->vm_end  */
+
+	/* if it doesn't overlap, we have nothing.. */
+	end = start + len;
+	if (vma->vm_start >= end) {
+		unlock_range(&mm->range_lock, start);
+		return 0;
+	}
+
+	/*
+	 * If we need to split any vma, do it now to save pain later.
+	 *
+	 * Note: mremap's move_vma VM_ACCOUNT handling assumes a partially
+	 * unmapped vm_area_struct will remain in use: so lower split_vma
+	 * places tmp vma above, and higher split_vma places tmp vma below.
+	 */
+	if (start > vma->vm_start) {
+		int error;
+
+		/*
+		 * Make sure that map_count on return from munmap() will
+		 * not exceed its limit; but let map_count go just above
+		 * its limit temporarily, to help free resources as expected.
+		 */
+		if (end < vma->vm_end && mm->map_count >= sysctl_max_map_count) {
+			unlock_range(&mm->range_lock, start);
+			return -ENOMEM;
+		}
+
+		error = __split_vma(mm, vma, start, 0);
+		if (error) {
+			unlock_range(&mm->range_lock, start);
+			return error;
+		}
+		prev = vma;
+	}
+
+	/* Does it split the last one? */
+	last = find_vma(mm, end);
+	if (last && end > last->vm_start) {
+		int error = __split_vma(mm, last, end, 1);
+		if (error) {
+			unlock_range(&mm->range_lock, start);
+			return error;
+		}
+	}
+	vma = prev? prev->vm_next: mm->mmap;
+
+	/*
+	 * unlock any mlock()ed ranges before detaching vmas
+	 */
+	if (mm->locked_vm) {
+		struct vm_area_struct *tmp = vma;
+		while (tmp && tmp->vm_start < end) {
+			if (tmp->vm_flags & VM_LOCKED) {
+				mm->locked_vm -= vma_pages(tmp);
+				munlock_vma_pages_all(tmp);
+			}
+			tmp = tmp->vm_next;
+		}
+	}
+
+	/*
+	 * Remove the vma's, and unmap the actual pages
+	 */
+	detach_vmas_to_be_unmapped(mm, vma, prev, end);
+
+	/* Notice: the mmap semaphore is released in the following function */
+	unmap_region2(mm, vma, prev, start, end);
+
+	/* Fix up all other VM information */
+	remove_vma_list(mm, vma);
+
+	unlock_range(&mm->range_lock, start);
+	return 0;
+}
+
 SYSCALL_DEFINE2(munmap, unsigned long, addr, size_t, len)
 {
 	int ret;
@@ -2109,8 +2244,10 @@ SYSCALL_DEFINE2(munmap, unsigned long, addr, size_t, len)
 	profile_munmap(addr);
 
 	down_write(&mm->mmap_sem);
-	ret = do_munmap(mm, addr, len);
-	up_write(&mm->mmap_sem);
+	ret = do_munmap2(mm, addr, len);
+
+	/* The mmap semaphore is released in unmap_region2 */
+	//up_write(&mm->mmap_sem);
 	return ret;
 }
 
@@ -2142,15 +2279,20 @@ unsigned long do_brk(unsigned long addr, unsigned long len)
 	if (!len)
 		return addr;
 
+	lock_range(&mm->range_lock, addr, len);
 	error = security_file_mmap(NULL, 0, 0, 0, addr, 1);
-	if (error)
+	if (error) {
+		unlock_range(&mm->range_lock, addr);
 		return error;
+	}
 
 	flags = VM_DATA_DEFAULT_FLAGS | VM_ACCOUNT | mm->def_flags;
 
 	error = get_unmapped_area(NULL, addr, len, 0, MAP_FIXED);
-	if (error & ~PAGE_MASK)
+	if (error & ~PAGE_MASK) {
+		unlock_range(&mm->range_lock, addr);
 		return error;
+	}
 
 	/*
 	 * mlock MCL_FUTURE?
@@ -2161,8 +2303,10 @@ unsigned long do_brk(unsigned long addr, unsigned long len)
 		locked += mm->locked_vm;
 		lock_limit = rlimit(RLIMIT_MEMLOCK);
 		lock_limit >>= PAGE_SHIFT;
-		if (locked > lock_limit && !capable(CAP_IPC_LOCK))
+		if (locked > lock_limit && !capable(CAP_IPC_LOCK)) {
+			unlock_range(&mm->range_lock, addr);
 			return -EAGAIN;
+		}
 	}
 
 	/*
@@ -2177,20 +2321,28 @@ unsigned long do_brk(unsigned long addr, unsigned long len)
  munmap_back:
 	vma = find_vma_prepare(mm, addr, &prev, &rb_link, &rb_parent);
 	if (vma && vma->vm_start < addr + len) {
-		if (do_munmap(mm, addr, len))
+		if (do_munmap(mm, addr, len)) {
+			unlock_range(&mm->range_lock, addr);
 			return -ENOMEM;
+		}
 		goto munmap_back;
 	}
 
 	/* Check against address space limits *after* clearing old maps... */
-	if (!may_expand_vm(mm, len >> PAGE_SHIFT))
+	if (!may_expand_vm(mm, len >> PAGE_SHIFT)) {
+		unlock_range(&mm->range_lock, addr);
 		return -ENOMEM;
+	}
 
-	if (mm->map_count > sysctl_max_map_count)
+	if (mm->map_count > sysctl_max_map_count) {
+		unlock_range(&mm->range_lock, addr);
 		return -ENOMEM;
+	}
 
-	if (security_vm_enough_memory(len >> PAGE_SHIFT))
+	if (security_vm_enough_memory(len >> PAGE_SHIFT)) {
+		unlock_range(&mm->range_lock, addr);
 		return -ENOMEM;
+	}
 
 	/* Can we just expand an old private anonymous mapping? */
 	vma = vma_merge(mm, prev, addr, addr + len, flags,
@@ -2204,6 +2356,7 @@ unsigned long do_brk(unsigned long addr, unsigned long len)
 	vma = kmem_cache_zalloc(vm_area_cachep, GFP_KERNEL);
 	if (!vma) {
 		vm_unacct_memory(len >> PAGE_SHIFT);
+		unlock_range(&mm->range_lock, addr);
 		return -ENOMEM;
 	}
 
@@ -2222,6 +2375,7 @@ out:
 		if (!mlock_vma_pages_range(vma, addr, addr + len))
 			mm->locked_vm += (len >> PAGE_SHIFT);
 	}
+	unlock_range(&mm->range_lock, addr);
 	return addr;
 }
 

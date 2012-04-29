@@ -1072,8 +1072,10 @@ unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
 	lock_range(&mm->range_lock, addr, len);
 
 	error = security_file_mmap(file, reqprot, prot, flags, addr, 0);
-	if (error)
+	if (error) {
+		unlock_range(&mm->range_lock, addr);
 		return error;
+	}
 	error = mmap_region(file, addr, len, flags, vm_flags, pgoff);
 
 	unlock_range(&mm->range_lock, addr);
@@ -1920,7 +1922,6 @@ static void unmap_region2(struct mm_struct *mm,
 	free_pgtables(&tlb, vma, prev ? prev->vm_end : FIRST_USER_ADDRESS,
 				 next ? next->vm_start : 0);
 	tlb_finish_mmu(&tlb, start, end);
-	//down_write(&mm->mmap_sem);
 }
 
 /*
@@ -2144,17 +2145,22 @@ int do_munmap2(struct mm_struct *mm, unsigned long start, size_t len)
 	unsigned long end;
 	struct vm_area_struct *vma, *prev, *last;
 
-	if ((start & ~PAGE_MASK) || start > TASK_SIZE || len > TASK_SIZE-start)
+	if ((start & ~PAGE_MASK) || start > TASK_SIZE || len > TASK_SIZE-start) {
+		up_write(&mm->mmap_sem);
 		return -EINVAL;
+	}
 
-	if ((len = PAGE_ALIGN(len)) == 0)
+	if ((len = PAGE_ALIGN(len)) == 0) {
+		up_write(&mm->mmap_sem);
 		return -EINVAL;
+	}
 
 	lock_range(&mm->range_lock, start, len);
 
 	/* Find the first overlapping VMA */
 	vma = find_vma(mm, start);
 	if (!vma) {
+		up_write(&mm->mmap_sem);
 		unlock_range(&mm->range_lock, start);
 		return 0;
 	}
@@ -2164,6 +2170,7 @@ int do_munmap2(struct mm_struct *mm, unsigned long start, size_t len)
 	/* if it doesn't overlap, we have nothing.. */
 	end = start + len;
 	if (vma->vm_start >= end) {
+		up_write(&mm->mmap_sem);
 		unlock_range(&mm->range_lock, start);
 		return 0;
 	}
@@ -2184,12 +2191,14 @@ int do_munmap2(struct mm_struct *mm, unsigned long start, size_t len)
 		 * its limit temporarily, to help free resources as expected.
 		 */
 		if (end < vma->vm_end && mm->map_count >= sysctl_max_map_count) {
+			up_write(&mm->mmap_sem);
 			unlock_range(&mm->range_lock, start);
 			return -ENOMEM;
 		}
 
 		error = __split_vma(mm, vma, start, 0);
 		if (error) {
+			up_write(&mm->mmap_sem);
 			unlock_range(&mm->range_lock, start);
 			return error;
 		}
@@ -2201,6 +2210,7 @@ int do_munmap2(struct mm_struct *mm, unsigned long start, size_t len)
 	if (last && end > last->vm_start) {
 		int error = __split_vma(mm, last, end, 1);
 		if (error) {
+			up_write(&mm->mmap_sem);
 			unlock_range(&mm->range_lock, start);
 			return error;
 		}
@@ -2245,8 +2255,6 @@ SYSCALL_DEFINE2(munmap, unsigned long, addr, size_t, len)
 
 	down_write(&mm->mmap_sem);
 	ret = do_munmap2(mm, addr, len);
-
-	/* The mmap semaphore is released in unmap_region2 */
 	//up_write(&mm->mmap_sem);
 	return ret;
 }

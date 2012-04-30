@@ -261,7 +261,7 @@ SYSCALL_DEFINE3(mprotect, unsigned long, start, size_t, len,
 	vm_flags = calc_vm_prot_bits(prot);
 
 	down_write(&current->mm->mmap_sem);
-    lock_range(&mm->range_lock, 0, TASK_SIZE);
+    lock_range(&current->mm->range_lock, 0, TASK_SIZE);
 
 	vma = find_vma_prev(current->mm, start, &prev);
 	error = -ENOMEM;
@@ -325,7 +325,7 @@ SYSCALL_DEFINE3(mprotect, unsigned long, start, size_t, len,
 		}
 	}
 out:
-    unlock_range(&mm->range_lock, 0);
+    unlock_range(&current->mm->range_lock, 0);
 	up_write(&current->mm->mmap_sem);
 	return error;
 }

@@ -441,6 +441,7 @@ unsigned long do_mremap(unsigned long addr,
 	old_len = PAGE_ALIGN(old_len);
 	new_len = PAGE_ALIGN(new_len);
 
+    lock_range(&mm->range_lock, 0, TASK_SIZE);
 	/*
 	 * We allow a zero old-len as a special case
 	 * for DOS-emu "duplicate shm area" thing. But
@@ -531,6 +532,8 @@ unsigned long do_mremap(unsigned long addr,
 out:
 	if (ret & ~PAGE_MASK)
 		vm_unacct_memory(charged);
+
+    unlock_range(&mm->range_lock, 0);
 	return ret;
 }
 

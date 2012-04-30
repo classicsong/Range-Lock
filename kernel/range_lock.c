@@ -26,6 +26,7 @@ void range_lock_init(range_lock l)
     spin_lock_init(&l->mutex);
     l->rand_bits = 0;
     l->rand_left = 0;
+    l->cnt = 0;
 
     for (i = 0; i < NUM_LEVELS; i++)
         l->header->forward[i] = NIL;
@@ -41,6 +42,9 @@ void range_lock_init(range_lock l)
 void range_lock_destroy(range_lock l)
 {
     rlnode p, q;
+
+    if (l->cnt != 0)
+        printk("error unlock %ld\n", l->cnt);
     p = l->header;
     do {
         q = p->forward[0];
@@ -144,6 +148,7 @@ void unlock_range(range_lock l, unsigned long start)
 
     spin_lock_irqsave(&l->mutex, flag);
 
+    l->cnt --;
     /* Locate predecessor in each level */
     start_flag = (start << 1) + 1;
     find_preds(l, start_flag, preds);
@@ -181,6 +186,7 @@ int try_lock_range(range_lock l, unsigned long start, size_t len)
 
     /* Insert the range to list */
     insert_range_flag(l, preds, start_flag, end_flag);
+    l->cnt ++;
     spin_unlock_irqrestore(&l->mutex, flag);
     return 1;
 }

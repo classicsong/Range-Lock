@@ -21,6 +21,7 @@ struct range_lock_s {
     /* Random number for skip list */
     int rand_left;
     int rand_bits;
+    long cnt;
 };
 
 void range_lock_init(range_lock l);

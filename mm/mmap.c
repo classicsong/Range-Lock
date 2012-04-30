@@ -2126,15 +2126,10 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len)
 	 */
 	detach_vmas_to_be_unmapped(mm, vma, prev, end);
 
-    /*
-     * classicsong move it here. semphone hold
-     */
-    remove_vma_list(mm, vma);
-
 	unmap_region(mm, vma, prev, start, end);
 
 	/* Fix up all other VM information */
-	//remove_vma_list(mm, vma);
+	remove_vma_list(mm, vma);
 
 	return 0;
 }
@@ -2242,11 +2237,16 @@ int do_munmap2(struct mm_struct *mm, unsigned long start, size_t len)
 	 */
 	detach_vmas_to_be_unmapped(mm, vma, prev, end);
 
+    /*
+     * classicsong move it here. semphone hold
+     */
+    remove_vma_list(mm, vma);
+
 	/* Notice: the mmap semaphore is released in the following function */
 	unmap_region2(mm, vma, prev, start, end);
 
 	/* Fix up all other VM information */
-	remove_vma_list(mm, vma);
+	//remove_vma_list(mm, vma);
 
 	unlock_range(&mm->range_lock, start);
 	return 0;

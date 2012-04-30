@@ -240,33 +240,6 @@ static struct vm_area_struct *remove_vma(struct vm_area_struct *vma)
 	return next;
 }
 
-/* Split remove_vma into two functions: close_vma and free_vma
- * The remove_vma_logical is protected by mmap semaphore in this way. 
- */
-static struct vm_area_struct *close_vma(struct vm_area_struct *vma)
-{
-	struct vm_area_struct *next = vma->vm_next;
-
-	might_sleep();
-	if (vma->vm_ops && vma->vm_ops->close)
-		vma->vm_ops->close(vma);
-	if (vma->vm_file) {
-		fput(vma->vm_file);
-		if (vma->vm_flags & VM_EXECUTABLE)
-			removed_exe_file_vma(vma->vm_mm);
-	}
-	mpol_put(vma_policy(vma));
-	return next;
-}
-
-static struct vm_area_struct *free_vma(struct vm_area_struct *vma)
-{
-	struct vm_area_struct *next = vma->vm_next;
-
-	kmem_cache_free(vm_area_cachep, vma);
-	return next;
-}
-
 SYSCALL_DEFINE1(brk, unsigned long, brk)
 {
 	unsigned long rlim, retval;
@@ -1900,28 +1873,6 @@ static void remove_vma_list(struct mm_struct *mm, struct vm_area_struct *vma)
 	validate_mm(mm);
 }
 
-static void close_vma_list(struct mm_struct *mm, struct vm_area_struct *vma)
-{
-	/* Update high watermark before we lower total_vm */
-	update_hiwater_vm(mm);
-	do {
-		long nrpages = vma_pages(vma);
-
-		mm->total_vm -= nrpages;
-		vm_stat_account(mm, vma->vm_flags, vma->vm_file, -nrpages);
-		vma = close_vma(vma);
-	} while (vma);
-	validate_mm(mm);
-}
-
-static void free_vma_list(struct mm_struct *mm, struct vm_area_struct *vma)
-{
-	/* Update high watermark before we lower total_vm */
-	do {
-		vma = free_vma(vma);
-	} while (vma);
-}
-
 /*
  * Get rid of page table information in the indicated region.
  *
@@ -2286,14 +2237,16 @@ int do_munmap2(struct mm_struct *mm, unsigned long start, size_t len)
 	 */
 	detach_vmas_to_be_unmapped(mm, vma, prev, end);
 
-	/* Fix up all other VM information */
-    close_vma_list(mm, vma);
+    /*
+     * classicsong move it here. semphone hold
+     */
+    remove_vma_list(mm, vma);
 
 	/* Notice: the mmap semaphore is released in the following function */
 	unmap_region2(mm, vma, prev, start, end);
-	
-	/* Free vmas */	
-	free_vma_list(mm, vma);
+
+	/* Fix up all other VM information */
+	//remove_vma_list(mm, vma);
 
 	unlock_range(&mm->range_lock, start);
 	return 0;

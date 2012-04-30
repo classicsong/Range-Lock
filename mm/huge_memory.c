@@ -858,7 +858,8 @@ static int do_huge_pmd_wp_page_fallback(struct mm_struct *mm,
 	}
 	kfree(pages);
 
-	mm->nr_ptes++;
+	//mm->nr_ptes++;
+    atomic_long_inc(&mm->nr_ptes);
 	smp_wmb(); /* make pte visible before pmd */
 	pmd_populate(mm, pmd, pgtable);
 	page_remove_rmap(page);
@@ -1356,7 +1357,8 @@ static int __split_huge_page_map(struct page *page,
 			pte_unmap(pte);
 		}
 
-		mm->nr_ptes++;
+		//mm->nr_ptes++;
+        atomic_long_inc(&mm->nr_ptes);
 		smp_wmb(); /* make pte visible before pmd */
 		/*
 		 * Up to this point the pmd is present and huge and
@@ -1969,7 +1971,8 @@ static void collapse_huge_page(struct mm_struct *mm,
 	set_pmd_at(mm, address, pmd, _pmd);
 	update_mmu_cache(vma, address, _pmd);
 	prepare_pmd_huge_pte(pgtable, mm);
-	mm->nr_ptes--;
+	//mm->nr_ptes--;
+    atomic_long_dec(&mm->nr_ptes);
 	spin_unlock(&mm->page_table_lock);
 
 #ifndef CONFIG_NUMA

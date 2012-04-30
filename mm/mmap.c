@@ -2125,10 +2125,16 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len)
 	 * Remove the vma's, and unmap the actual pages
 	 */
 	detach_vmas_to_be_unmapped(mm, vma, prev, end);
+
+    /*
+     * classicsong move it here. semphone hold
+     */
+    remove_vma_list(mm, vma);
+
 	unmap_region(mm, vma, prev, start, end);
 
 	/* Fix up all other VM information */
-	remove_vma_list(mm, vma);
+	//remove_vma_list(mm, vma);
 
 	return 0;
 }
@@ -2433,7 +2439,7 @@ void exit_mmap(struct mm_struct *mm)
 	while (vma)
 		vma = remove_vma(vma);
 
-	BUG_ON(mm->nr_ptes > (FIRST_USER_ADDRESS+PMD_SIZE-1)>>PMD_SHIFT);
+	BUG_ON(atomic_long_read(&mm->nr_ptes) > (FIRST_USER_ADDRESS+PMD_SIZE-1)>>PMD_SHIFT);
 }
 
 /* Insert vm structure into process list sorted by address

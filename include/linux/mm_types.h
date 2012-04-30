@@ -328,7 +328,8 @@ struct mm_struct {
 	unsigned long stack_vm;		/* VM_GROWSUP/DOWN */
 	unsigned long reserved_vm;	/* VM_RESERVED|VM_IO pages */
 	unsigned long def_flags;
-	unsigned long nr_ptes;		/* Page table pages */
+	//unsigned long nr_ptes;		/* Page table pages */
+    atomic_long_t nr_ptes;
 	unsigned long start_code, end_code, start_data, end_data;
 	unsigned long start_brk, brk, start_stack;
 	unsigned long arg_start, arg_end, env_start, env_end;

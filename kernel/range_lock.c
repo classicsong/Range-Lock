@@ -13,7 +13,7 @@
 
 
 /* Speicial NIL node */
-struct rlnode_s nil = { 0x7fffffffffffffff, {&nil} };
+struct rlnode_s nil = { -1, {&nil} };
 rlnode NIL = &nil;
 
 void range_lock_init(range_lock l)
@@ -27,16 +27,10 @@ void range_lock_init(range_lock l)
     l->rand_bits = 0;
     l->rand_left = 0;
     l->cnt = 0;
+    l->header->key = 0;
 
     for (i = 0; i < NUM_LEVELS; i++)
         l->header->forward[i] = NIL;
-
-    /* Insert init node */
-    start = new_node(0);
-    end = new_node(0);
-    succ(start) = end;
-    succ(end) = succ(l->header);
-    succ(l->header) = start;
 };
 
 void range_lock_destroy(range_lock l)

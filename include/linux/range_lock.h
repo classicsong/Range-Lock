@@ -3,7 +3,7 @@
 
 #include <linux/spinlock.h>
 
-typedef long int range_flag_t;
+typedef unsigned long int range_flag_t;
 typedef struct rlnode_s *rlnode;
 typedef struct range_lock_s *range_lock;
 

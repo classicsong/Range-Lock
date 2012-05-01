@@ -18,6 +18,7 @@ rlnode NIL = &nil;
 
 void range_lock_init(range_lock l)
 {
+    #if 0
     int i;
     rlnode start, end;
 
@@ -31,10 +32,14 @@ void range_lock_init(range_lock l)
 
     for (i = 0; i < NUM_LEVELS; i++)
         l->header->forward[i] = NIL;
+#endif
+    printk("Range lock inited !!!\n");
+
 };
 
 void range_lock_destroy(range_lock l)
 {
+        #if 0
     rlnode p, q;
 
     if (l->cnt != 0)
@@ -47,6 +52,7 @@ void range_lock_destroy(range_lock l)
     }
     while (p != NIL);
     kfree(l);
+#endif
 };
 
 inline static int random_level(range_lock l)
@@ -136,6 +142,7 @@ inline static void delete_range_flag(range_lock l, rlnode * preds)
 
 void unlock_range(range_lock l, unsigned long start)
 {
+#if 0
     unsigned long flag;
     range_flag_t start_flag;
     rlnode preds[NUM_LEVELS];
@@ -150,6 +157,8 @@ void unlock_range(range_lock l, unsigned long start)
     /* Delete from list */
     delete_range_flag(l, preds);
     spin_unlock_irqrestore(&l->mutex, flag);
+#endif
+    printk("unlock range %lx\n", start);
 }
 
 int try_lock_range(range_lock l, unsigned long start, size_t len)
@@ -187,7 +196,12 @@ int try_lock_range(range_lock l, unsigned long start, size_t len)
 
 void lock_range(range_lock l, unsigned long start, size_t len)
 {
+    #if 0
     while(!try_lock_range(l, start, len)) {
+        printk("Try lock range %lx %lx failed\n", start, len);
         yield();
     }
+    #endif
+    printk("Try lock range %lx %lx success\n", start, len);
+
 }

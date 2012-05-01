@@ -19,7 +19,7 @@ rlnode NIL = &nil;
 void range_lock_init(range_lock l)
 {
     int i;
-    rlnode start, end;
+    //rlnode start, end;
 
     l->level = 0;
     l->header = new_node(NUM_LEVELS);
@@ -46,7 +46,6 @@ void range_lock_destroy(range_lock l)
         p = q;
     }
     while (p != NIL);
-    kfree(l);
 };
 
 inline static int random_level(range_lock l)

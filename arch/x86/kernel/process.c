@@ -316,9 +316,6 @@ long sys_execve(const char __user *name,
 		return error;
 	error = do_execve(filename, argv, envp, regs);
 
-	if (error != 0)
-		printk("WARNING: %d\n", error);
-
 #ifdef CONFIG_X86_32
 	if (error == 0) {
 		/* Make sure we don't return using sysenter.. */

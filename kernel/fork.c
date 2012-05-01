@@ -539,6 +539,9 @@ void __mmdrop(struct mm_struct *mm)
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
 	VM_BUG_ON(mm->pmd_huge_pte);
 #endif
+	
+    	if (mm != NULL && mm->range_lock.header != NULL)
+        	range_lock_destroy(&mm->range_lock);
 	free_mm(mm);
 }
 EXPORT_SYMBOL_GPL(__mmdrop);
@@ -663,8 +666,6 @@ void mm_release(struct task_struct *tsk, struct mm_struct *mm)
 {
 	struct completion *vfork_done = tsk->vfork_done;
 
-    if (mm != NULL && mm->range_lock.header != NULL)
-        range_lock_destroy(&mm->range_lock);
 
 	/* Get rid of any futexes when releasing the mm */
 #ifdef CONFIG_FUTEX

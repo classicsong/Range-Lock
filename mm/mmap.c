@@ -1965,14 +1965,13 @@ static void unmap_region2(struct mm_struct *mm,
 	update_hiwater_rss(mm);
 	
 	/* Release mm semaphore earlier */
-	//up_write(&mm->mmap_sem);
+	up_write(&mm->mmap_sem);
 
 	unmap_vmas(&tlb, vma, start, end, &nr_accounted, NULL);
 	vm_unacct_memory(nr_accounted);
 	free_pgtables(&tlb, vma, prev ? prev->vm_end : FIRST_USER_ADDRESS,
 				 next ? next->vm_start : 0);
 	tlb_finish_mmu(&tlb, start, end);
-	up_write(&mm->mmap_sem);
 }
 
 /*
@@ -2309,9 +2308,9 @@ SYSCALL_DEFINE2(munmap, unsigned long, addr, size_t, len)
 	profile_munmap(addr);
 
 	down_write(&mm->mmap_sem);
-	//ret = do_munmap2(mm, addr, len);
-	ret = do_munmap(mm, addr, len);
-	up_write(&mm->mmap_sem);
+	ret = do_munmap2(mm, addr, len);
+	//ret = do_munmap(mm, addr, len);
+	//up_write(&mm->mmap_sem);
 	return ret;
 }
 

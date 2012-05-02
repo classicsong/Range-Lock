@@ -3441,7 +3441,7 @@ unlock:
 /*
  * By the time we get here, we already hold the mm semaphore
  */
-int handle_mm_fault(struct mm_struct *mm, struct vm_area_struct *vma,
+int handle_mm_fault2(struct mm_struct *mm, struct vm_area_struct *vma,
 		unsigned long address, unsigned int flags)
 {
 	pgd_t *pgd;
@@ -3503,6 +3503,17 @@ int handle_mm_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 	pte = pte_offset_map(pmd, address);
 
 	return handle_pte_fault(mm, vma, address, pte, pmd, flags);
+}
+
+
+int handle_mm_fault(struct mm_struct *mm, struct vm_area_struct *vma,
+		unsigned long address, unsigned int flags)
+{
+	int ret;
+	lock_range(&mm->range_lock, address, PAGE_SIZE);
+	ret = handle_mm_fault2(mm, vma, address, flags);
+	unlock_range(&mm->range_lock, address);
+	return ret;
 }
 
 #ifndef __PAGETABLE_PUD_FOLDED

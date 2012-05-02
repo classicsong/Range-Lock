@@ -1171,9 +1171,9 @@ good_area:
 #define __PTE_SIZE		(512 * PAGE_SIZE)
 	unsigned long pte_addr = __ROUNDDOWN(address, __PTE_SIZE);
 
-	lock_range(&mm->range_lock, address, PAGE_SIZE);
+	//lock_range(&mm->range_lock, address, PAGE_SIZE);
 	fault = handle_mm_fault(mm, vma, address, flags);
-	unlock_range(&mm->range_lock, address);
+	//unlock_range(&mm->range_lock, address);
 
 	if (unlikely(fault & (VM_FAULT_RETRY|VM_FAULT_ERROR))) {
 		if (mm_fault_error(regs, error_code, address, fault))

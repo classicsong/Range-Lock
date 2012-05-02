@@ -123,7 +123,7 @@ inline static void delete_range_flag(range_lock l, rlnode * preds)
 
     /* Delete end_flag (in level 0) */
     q2 = succ(q);
-    succ(p) = succ(q2);
+    succ(preds[0]) = succ(q2);
     kfree(q);
     kfree(q2);
 

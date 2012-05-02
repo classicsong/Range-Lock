@@ -250,11 +250,6 @@ static struct vm_area_struct *close_vma(struct vm_area_struct *vma)
 	might_sleep();
 	if (vma->vm_ops && vma->vm_ops->close)
 		vma->vm_ops->close(vma);
-	if (vma->vm_file) {
-		fput(vma->vm_file);
-		if (vma->vm_flags & VM_EXECUTABLE)
-			removed_exe_file_vma(vma->vm_mm);
-	}
 	mpol_put(vma_policy(vma));
 	return next;
 }
@@ -262,7 +257,11 @@ static struct vm_area_struct *close_vma(struct vm_area_struct *vma)
 static struct vm_area_struct *free_vma(struct vm_area_struct *vma)
 {
 	struct vm_area_struct *next = vma->vm_next;
-
+	if (vma->vm_file) {
+		fput(vma->vm_file);
+		if (vma->vm_flags & VM_EXECUTABLE)
+			removed_exe_file_vma(vma->vm_mm);
+	}
 	kmem_cache_free(vm_area_cachep, vma);
 	return next;
 }
@@ -1966,12 +1965,13 @@ static void unmap_region2(struct mm_struct *mm,
 	
 	/* Release mm semaphore earlier */
 	up_write(&mm->mmap_sem);
-
+	
 	unmap_vmas(&tlb, vma, start, end, &nr_accounted, NULL);
 	vm_unacct_memory(nr_accounted);
 	free_pgtables(&tlb, vma, prev ? prev->vm_end : FIRST_USER_ADDRESS,
 				 next ? next->vm_start : 0);
 	tlb_finish_mmu(&tlb, start, end);
+
 }
 
 /*
@@ -2287,16 +2287,15 @@ int do_munmap2(struct mm_struct *mm, unsigned long start, size_t len)
 	 */
 	detach_vmas_to_be_unmapped(mm, vma, prev, end);
 
-	/* Fix up all other VM information */
-    close_vma_list(mm, vma);
-
 	/* Notice: the mmap semaphore is released in the following function */
 	unmap_region2(mm, vma, prev, start, end);
-	
-	/* Free vmas */	
-	free_vma_list(mm, vma);
 
 	unlock_range(&mm->range_lock, start);
+	
+	down_write(&mm->mmap_sem);
+	/* Fix up all other VM information */
+    	remove_vma_list(mm, vma);
+	up_write(&mm->mmap_sem);
 	return 0;
 }
 

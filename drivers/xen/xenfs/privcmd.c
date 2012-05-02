@@ -310,7 +310,7 @@ static long privcmd_ioctl_mmap_batch(void __user *udata)
 		goto out;
 	}
 
-	range_lock(&mm->range_lock, m.addr, m.num * PAGE_SIZE);
+	lock_range(&mm->range_lock, m.addr, m.num * PAGE_SIZE);
 	up_write(&mm->mmap_sem);
 
 	state.domain = m.dom;
@@ -321,8 +321,8 @@ static long privcmd_ioctl_mmap_batch(void __user *udata)
 	ret = traverse_pages(m.num, sizeof(xen_pfn_t),
 			     &pagelist, mmap_batch_fn, &state);
 
-	range_unlock(&mm->range_lock, m.addr);
-
+	unlock_range(&mm->range_lock, m.addr);
+	
 	if (state.err > 0) {
 		state.user = m.arr;
 		ret = traverse_pages(m.num, sizeof(xen_pfn_t),

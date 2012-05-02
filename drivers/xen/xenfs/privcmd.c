@@ -18,6 +18,7 @@
 #include <linux/highmem.h>
 #include <linux/pagemap.h>
 #include <linux/seq_file.h>
+#include <linux/range_lock.h>
 
 #include <asm/pgalloc.h>
 #include <asm/pgtable.h>
@@ -309,6 +310,9 @@ static long privcmd_ioctl_mmap_batch(void __user *udata)
 		goto out;
 	}
 
+	range_lock(&mm->range_lock, m.addr, m.num * PAGE_SIZE);
+	up_write(&mm->mmap_sem);
+
 	state.domain = m.dom;
 	state.vma = vma;
 	state.va = m.addr;
@@ -317,7 +321,7 @@ static long privcmd_ioctl_mmap_batch(void __user *udata)
 	ret = traverse_pages(m.num, sizeof(xen_pfn_t),
 			     &pagelist, mmap_batch_fn, &state);
 
-	up_write(&mm->mmap_sem);
+	range_unlock(&mm->range_lock, m.addr);
 
 	if (state.err > 0) {
 		state.user = m.arr;

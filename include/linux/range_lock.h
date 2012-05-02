@@ -24,9 +24,10 @@ struct range_lock_s {
     long cnt;
 };
 
-void range_lock_init(range_lock l);
-void range_lock_destroy(range_lock l);
+extern void range_lock_init(range_lock l);
+extern void range_lock_destroy(range_lock l);
 extern void unlock_range(range_lock l, unsigned long start);
 extern int try_lock_range(range_lock l, unsigned long start, size_t len);
-void lock_range(range_lock l, unsigned long start, size_t len);
+extern void lock_range(range_lock l, unsigned long start, size_t len);
+extern int test_range(range_lock l, unsigned long start, size_t len);
 #endif

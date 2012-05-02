@@ -190,3 +190,34 @@ void lock_range(range_lock l, unsigned long start, size_t len)
         yield();
     }
 }
+
+/* Test if an given range is unlocked, return 0 if it is locked  */
+int test_range(range_lock l, unsigned long start, size_t len)
+{    
+    unsigned long flag;
+    range_flag_t end_flag = ((start + len) << 1);
+    range_flag_t start_flag = (start << 1) + 1;
+    rlnode preds[NUM_LEVELS];
+    rlnode n, succ_node;
+
+    spin_lock_irqsave(&l->mutex, flag);
+
+    /* Locate predecessor in each level */
+    find_preds(l, start_flag, preds);
+
+    /* Test if their is a free range */
+    n = preds[0];
+    if ((n->key & 1) == 1) {
+        spin_unlock_irqrestore(&l->mutex, flag);
+        return 0;
+    }
+    succ_node = succ(n);
+
+    if (succ_node->key <= end_flag) {
+        spin_unlock_irqrestore(&l->mutex, flag);
+        return 0;
+    }
+
+    spin_unlock_irqrestore(&l->mutex, flag);
+    return 1;
+}

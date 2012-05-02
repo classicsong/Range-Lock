@@ -1958,11 +1958,14 @@ static void unmap_region2(struct mm_struct *mm,
 	struct vm_area_struct *next = prev? prev->vm_next: mm->mmap;
 	struct mmu_gather tlb;
 	unsigned long nr_accounted = 0;
+	unsigned long start_addr = prev ? prev->vm_end : FIRST_USER_ADDRESS;
+	unsigned long end_addr = next ? next->vm_start : TASK_SIZE;
 
 	lru_add_drain();
 	tlb_gather_mmu(&tlb, mm, 0);
 	update_hiwater_rss(mm);
 	
+	lock_range(&mm->range_lock, start_addr, end_addr - start_addr);
 	/* Release mm semaphore earlier */
 	up_write(&mm->mmap_sem);
 	
@@ -1971,7 +1974,7 @@ static void unmap_region2(struct mm_struct *mm,
 	free_pgtables(&tlb, vma, prev ? prev->vm_end : FIRST_USER_ADDRESS,
 				 next ? next->vm_start : 0);
 	tlb_finish_mmu(&tlb, start, end);
-
+	unlock_range(&mm->range_lock, start_addr);
 }
 
 /*
@@ -2206,8 +2209,6 @@ int do_munmap2(struct mm_struct *mm, unsigned long start, size_t len)
 		return -EINVAL;
 	}
 
-	lock_range(&mm->range_lock, start, len);
-
 	/* Find the first overlapping VMA */
 	vma = find_vma(mm, start);
 	if (!vma) {
@@ -2290,8 +2291,6 @@ int do_munmap2(struct mm_struct *mm, unsigned long start, size_t len)
 	/* Notice: the mmap semaphore is released in the following function */
 	unmap_region2(mm, vma, prev, start, end);
 
-	unlock_range(&mm->range_lock, start);
-	
 	down_write(&mm->mmap_sem);
 	/* Fix up all other VM information */
     	remove_vma_list(mm, vma);

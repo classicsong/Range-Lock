@@ -1097,14 +1097,12 @@ unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
 	}
 	
 	lock_range(&mm->range_lock, addr, len);
-
 	error = security_file_mmap(file, reqprot, prot, flags, addr, 0);
 	if (error) {
 		unlock_range(&mm->range_lock, addr);
 		return error;
 	}
 	ret = mmap_region(file, addr, len, flags, vm_flags, pgoff);
-
 	unlock_range(&mm->range_lock, addr);
 	return ret;
 }
@@ -1945,6 +1943,9 @@ static void unmap_region(struct mm_struct *mm,
 	tlb_finish_mmu(&tlb, start, end);
 }
 
+extern void free_pgtables2(struct mmu_gather *tlb, struct vm_area_struct *vma,
+		unsigned long floor, unsigned long ceiling);
+
 /*
  * Get rid of page table information in the indicated region. 
  * Release mm semaphore earlier for munmap syscall.
@@ -1960,6 +1961,7 @@ static void unmap_region2(struct mm_struct *mm,
 	unsigned long nr_accounted = 0;
 	unsigned long start_addr = prev ? prev->vm_end : FIRST_USER_ADDRESS;
 	unsigned long end_addr = next ? next->vm_start : TASK_SIZE;
+	unsigned long end_addr2 = next ? next->vm_start : 0;
 
 	lru_add_drain();
 	tlb_gather_mmu(&tlb, mm, 0);
@@ -1971,8 +1973,9 @@ static void unmap_region2(struct mm_struct *mm,
 	
 	unmap_vmas(&tlb, vma, start, end, &nr_accounted, NULL);
 	vm_unacct_memory(nr_accounted);
-	free_pgtables(&tlb, vma, prev ? prev->vm_end : FIRST_USER_ADDRESS,
-				 next ? next->vm_start : 0);
+	free_pgtables(&tlb, vma, start_addr, end_addr2);
+	//free_pgtables(&tlb, vma, prev ? prev->vm_end : FIRST_USER_ADDRESS,
+	//			 next ? next->vm_start : 0);
 	tlb_finish_mmu(&tlb, start, end);
 	unlock_range(&mm->range_lock, start_addr);
 }
@@ -2213,7 +2216,6 @@ int do_munmap2(struct mm_struct *mm, unsigned long start, size_t len)
 	vma = find_vma(mm, start);
 	if (!vma) {
 		up_write(&mm->mmap_sem);
-		unlock_range(&mm->range_lock, start);
 		return 0;
 	}
 	prev = vma->vm_prev;
@@ -2223,7 +2225,6 @@ int do_munmap2(struct mm_struct *mm, unsigned long start, size_t len)
 	end = start + len;
 	if (vma->vm_start >= end) {
 		up_write(&mm->mmap_sem);
-		unlock_range(&mm->range_lock, start);
 		return 0;
 	}
 
@@ -2244,14 +2245,12 @@ int do_munmap2(struct mm_struct *mm, unsigned long start, size_t len)
 		 */
 		if (end < vma->vm_end && mm->map_count >= sysctl_max_map_count) {
 			up_write(&mm->mmap_sem);
-			unlock_range(&mm->range_lock, start);
 			return -ENOMEM;
 		}
 
 		error = __split_vma(mm, vma, start, 0);
 		if (error) {
 			up_write(&mm->mmap_sem);
-			unlock_range(&mm->range_lock, start);
 			return error;
 		}
 		prev = vma;
@@ -2263,7 +2262,6 @@ int do_munmap2(struct mm_struct *mm, unsigned long start, size_t len)
 		int error = __split_vma(mm, last, end, 1);
 		if (error) {
 			up_write(&mm->mmap_sem);
-			unlock_range(&mm->range_lock, start);
 			return error;
 		}
 	}
@@ -2293,7 +2291,7 @@ int do_munmap2(struct mm_struct *mm, unsigned long start, size_t len)
 
 	down_write(&mm->mmap_sem);
 	/* Fix up all other VM information */
-    	remove_vma_list(mm, vma);
+    remove_vma_list(mm, vma);
 	up_write(&mm->mmap_sem);
 	return 0;
 }

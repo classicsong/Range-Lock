@@ -1974,8 +1974,6 @@ static void unmap_region2(struct mm_struct *mm,
 	unmap_vmas(&tlb, vma, start, end, &nr_accounted, NULL);
 	vm_unacct_memory(nr_accounted);
 	free_pgtables(&tlb, vma, start_addr, end_addr2);
-	//free_pgtables(&tlb, vma, prev ? prev->vm_end : FIRST_USER_ADDRESS,
-	//			 next ? next->vm_start : 0);
 	tlb_finish_mmu(&tlb, start, end);
 	unlock_range(&mm->range_lock, start_addr);
 }

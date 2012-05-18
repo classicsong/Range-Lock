@@ -13,7 +13,6 @@
 #include <linux/perf_event.h>		/* perf_sw_event		*/
 #include <linux/hugetlb.h>		/* hstate_index_to_shift	*/
 #include <linux/prefetch.h>		/* prefetchw			*/
-#include <linux/range_lock.h>
 
 #include <asm/traps.h>			/* dotraplinkage, ...		*/
 #include <asm/pgalloc.h>		/* pgd_*(), ...			*/
@@ -1171,9 +1170,7 @@ good_area:
 #define __PTE_SIZE		(512 * PAGE_SIZE)
 	unsigned long pte_addr = __ROUNDDOWN(address, __PTE_SIZE);
 
-	//lock_range(&mm->range_lock, address, PAGE_SIZE);
 	fault = handle_mm_fault(mm, vma, address, flags);
-	//unlock_range(&mm->range_lock, address);
 
 	if (unlikely(fault & (VM_FAULT_RETRY|VM_FAULT_ERROR))) {
 		if (mm_fault_error(regs, error_code, address, fault))

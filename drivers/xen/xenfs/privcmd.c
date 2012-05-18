@@ -370,7 +370,6 @@ static int privcmd_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	       vma, vma->vm_start, vma->vm_end,
 	       vmf->pgoff, vmf->virtual_address);
 
-	BUG_ON(1);
 	return VM_FAULT_SIGBUS;
 }
 

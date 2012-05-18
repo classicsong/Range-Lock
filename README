@@ -1,3 +1,9 @@
+This Linux kernel 3.2.6 is downloaded from kernel.org
+To compile the kernel, please make sure the xenfs is compiled as in kernel instead of module
+The Range-Lock Linux has passed all memory related test cases of linux test project
+
+The Range-Lock Linux kernel is used to improve the scalability of parallel xen VM management operations (Live VM migration, VM save and VM restore)	
+
 	Linux kernel release 3.x <http://kernel.org/>
 
 These are the release notes for Linux version 3.  Read them carefully,
